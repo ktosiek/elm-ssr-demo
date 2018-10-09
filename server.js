@@ -7,19 +7,41 @@ const { Script } = require("vm");
 const EventEmitter = require('events');
 
 const PORT = process.env.PORT || 8080;
-const SSR_ONLY = true;  // Only load the SSR view, without the actual app
+const SSR_ONLY = false;  // Only load the SSR view, without the actual app
+
+const CmdNone = { '$': 2, m: { '$': '[]' } };
 
 const Bundler = require('parcel-bundler');
 const app = express();
 app.use('/static', express.static('dist'));
 
 const file = 'index.js'; // Pass an absolute path to the entrypoint here
-const options = {}; // See options section of api docs, for the possibilities
+const options = {
+  hmr: false,  // TODO: fix HMR with elm-hot
+}; // See options section of api docs, for the possibilities
 
 // Initialize a new bundler using a file and options
 const bundler = new Bundler(file, options);
 const readFile = require('util').promisify(fs.readFile);
 const writeFile = require('util').promisify(fs.writeFile);
+
+// Inject the stepperBuilder wrapper into the code bundle
+bundler.on('buildEnd', () => {
+  if (!bundler.mainBundle) return;
+  const path = bundler.mainBundle.name;
+  const raw = fs.readFileSync(path, {encoding: 'utf-8'});
+  const mangled = raw
+    .replace(
+      /(function _Platform_initialize\([^)]+\))\n{/,
+      `$1 {
+        if (window.stepperBuilderWrapper)
+          stepperBuilder = window.stepperBuilderWrapper(stepperBuilder);
+        if (window.ssrModel) {
+          init = () => ({ "$": '#2', a: window.ssrModel, b: ${JSON.stringify(CmdNone)}});
+        }
+      `);
+  fs.writeFileSync(path, mangled);
+});
 
 // Let express use the bundler middleware, this will let Parcel handle every request over your express server
 app.use(bundler.middleware());
@@ -53,12 +75,30 @@ const renderElmApp = (bundle, url) =>
     const xhrWatcher = new XHRWatcher();
     xhrWatcher.install(dom.window);
 
+    let lastModel = null;
+    dom.window._on_model_step = (model) => {
+      console.log('Model step', model);
+      lastModel = model;
+    }
+    dom.window.stepperBuilderWrapper = (stepperBuilder) => {
+      return (sendToApp, initialModel) => {
+        const baseStepper = stepperBuilder(sendToApp, initialModel);
+        return (nextModel, isSync) => {
+          dom.window._on_model_step(nextModel);
+          return baseStepper(nextModel, isSync);
+        }
+      }
+    };
+
     const tryResolve = () => {
       dom.window.requestAnimationFrame(function resolveIfReady() {
         if (xhrWatcher.allDone) {
           if (rafHandler.queue.length === 0) {
             console.log('No pending XHR, and nothing in RAF queue: pushing the results');
-            resolve(dom.window.document.body.innerHTML);
+            console.log('Pushing model state', lastModel);
+            resolve(
+              `${dom.window.document.body.innerHTML}
+              <script>window.ssrModel = ${JSON.stringify(lastModel)};</script>`);
             dom.window.close();
           } else {
             tryResolve();
