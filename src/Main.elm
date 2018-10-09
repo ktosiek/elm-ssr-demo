@@ -3,6 +3,7 @@ module Main exposing (main)
 import Browser
 import Html exposing (Html)
 import Html.Attributes exposing (src)
+import Html.Events exposing (onClick)
 import Http
 import Json.Decode as Decode
 
@@ -13,6 +14,7 @@ catApiUrl =
 
 type Msg
     = GotCat (Result Http.Error Model)
+    | MoreCat
 
 
 type alias CatId =
@@ -46,6 +48,9 @@ update msg model =
         GotCat (Err err) ->
             Debug.todo "Bad cat"
 
+        MoreCat ->
+            ( model, getCat )
+
 
 getCat : Cmd Msg
 getCat =
@@ -78,7 +83,7 @@ showCat model =
             Html.text "Loading..."
 
         Cat catId url ->
-            Html.figure []
+            Html.figure [ onClick MoreCat ]
                 [ Html.img [ src url ] []
                 , Html.figcaption [] [ Html.text ("ID: " ++ catId) ]
                 ]
