@@ -59,6 +59,7 @@ const renderElmApp = (bundle, url) =>
           if (rafHandler.queue.length === 0) {
             console.log('No pending XHR, and nothing in RAF queue: pushing the results');
             resolve(dom.window.document.body.innerHTML);
+            dom.window.close();
           } else {
             tryResolve();
           }
