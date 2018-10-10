@@ -27,7 +27,7 @@ type alias Url =
 
 type Model
     = Loading
-    | Cat CatId Url
+    | Cat (String -> String) CatId Url
 
 
 main : Platform.Program {} Model Msg
@@ -71,19 +71,32 @@ firstCatDecoder =
 
 catDecoder : Decode.Decoder Model
 catDecoder =
-    Decode.map2 Cat
+    Decode.map2 (Cat showCatId)
         (Decode.field "id" Decode.string)
         (Decode.field "url" Decode.string)
+
+
+showCatId : String -> String
+showCatId catId =
+    getId 1 ++ ": " ++ catId
+
+
+getId x =
+    if x == 0 then
+        "ID"
+
+    else
+        "I" ++ getId (x - 1)
 
 
 showCat : Model -> Html Msg
 showCat model =
     case model of
         Loading ->
-            Html.text "Loading..."
+            Html.text (showCatId "Loading...")
 
-        Cat catId url ->
+        Cat f catId url ->
             Html.figure [ onClick MoreCat ]
                 [ Html.img [ src url ] []
-                , Html.figcaption [] [ Html.text ("ID: " ++ catId) ]
+                , Html.figcaption [] [ Html.text (f catId) ]
                 ]

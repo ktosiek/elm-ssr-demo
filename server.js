@@ -36,10 +36,18 @@ bundler.on('buildEnd', () => {
       `$1 {
         if (window.stepperBuilderWrapper)
           stepperBuilder = window.stepperBuilderWrapper(stepperBuilder);
-        if (window.ssrModel) {
-          init = () => ({ "$": '#2', a: window.ssrModel, b: ${JSON.stringify(CmdNone)}});
+        if (window.buildSSRModel) {
+          init = () => ({ "$": '#2', a: window.buildSSRModel(fns), b: ${JSON.stringify(CmdNone)}});
         }
-      `);
+      `)
+    .replace(
+      /\nfunction F\(arity, fun, wrapper\) {/,
+      "\nvar fns = {}; function F(arity, fun, wrapper) {")
+    .replace(
+      // TODO: This should handle all unicode letters, not just [0-9],
+      // but node doesn't have a class for all letters.
+      /\nvar ([\w\d]+\$[\w\d$]+) = /gu,
+      "\nvar $1 =fns.$1 = ");
   fs.writeFileSync(path, mangled);
 });
 
@@ -98,7 +106,11 @@ const renderElmApp = (bundle, url) =>
             console.log('Pushing model state', lastModel);
             resolve(
               `${dom.window.document.body.innerHTML}
-              <script>window.ssrModel = ${JSON.stringify(lastModel)};</script>`);
+              <script>window.buildSSRModel = (fns) => {
+                const model = (${dehydrateModel(lastModel)})(fns);
+                console.log('dehydrated', model);
+                return model;
+              }</script>`);
             dom.window.close();
           } else {
             tryResolve();
@@ -124,6 +136,33 @@ const renderApp = ({bundlePath, renderedHtml}) => {
 ${renderedHtml}
 ${bundlePath ? `<script src="${bundlePath}"></script>` : ""}
 </body></html>`;
+}
+
+const dehydrateModel = (model) => {
+  return `(fns) => (${serialize(model)})`;
+
+  function serialize(o) {
+    if (o instanceof Array) {
+      return `[${o.map(serialize).join(', ')}]`;
+    } else if (typeof o === 'function' && o.name.indexOf("$") > 0) {
+      return `fns.${o.name}`;
+    } else if (typeof o === 'function') {
+      // Inline functions. Just hope for the best.
+      // TODO: check if those functions are really serializable?
+      console.log('inlining function', o.name, o.toString());
+      return o.toString().replace(/[\w\d]+\$[\w\d$]+/, "(fns.$&)");
+    } else if (typeof o === 'object' && o["$"] !== undefined) {
+      return `{${
+        Object.getOwnPropertyNames(o)
+        .map(k => `"${k}": ${serialize(o[k])}`)
+        .join(', ')
+      }}`;
+    } else if (typeof o === 'number' || typeof o === 'string') {
+      return JSON.stringify(o);
+    } else {
+      throw new Error(`Unserializable value in the model: ${o}`);
+    }
+  }
 }
 
 class QueueRAFHandler {

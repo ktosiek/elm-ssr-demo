@@ -10,6 +10,9 @@ TODO:
 * [ ] Keep focus after rehydration
 * [ ] Keep inputs state after rehydration
 * [x] Rehydrate the state from the server
+* [x] Handle functions in model (kind of)
+* [ ] Handle the navigation key
 * [x] Download data on the server / wait for a stable state
 * [ ] Integrate with parcel-plugin-elm-hot (I've broken the integration somehow)
 * [ ] Test with --optimize and --debug
+* [ ] Check that the model matches the bundle before rehydration
