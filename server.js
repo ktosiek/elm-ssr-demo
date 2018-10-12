@@ -146,15 +146,16 @@ const dehydrateModel = (model) => {
       return `[${o.map(serialize).join(', ')}]`;
     } else if (typeof o === 'function' && o.name.indexOf("$") > 0) {
       return `fns.${o.name}`;
-    } else if (typeof o === 'object' && o["$"] !== undefined) {
+    } else if (typeof o === 'object') {
       return `{${
         Object.getOwnPropertyNames(o)
         .map(k => `"${k}": ${serialize(o[k])}`)
         .join(', ')
       }}`;
-    } else if (typeof o === 'number' || typeof o === 'string') {
+    } else if (typeof o === 'number' || typeof o === 'string' || typeof o === 'boolean') {
       return JSON.stringify(o);
     } else {
+      console.log('Failed to serialize', typeof o, o);
       throw new Error(`Unserializable value in the model: ${o}`);
     }
   }
