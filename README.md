@@ -16,6 +16,7 @@ The way of breaking into the runtime is heavily inspired by [elm-hot](https://gi
 * [ ] Integrate with parcel-plugin-elm-hot (I've broken the integration somehow)
 * [ ] Test with --optimize and --debug
 * [ ] Check that the model matches the bundle before rehydration
+* [ ] The Flick - the screen flicks when hydrating
 
 # <a name="limitations"></a>Limitations:
 Those are left out of the demo on purpose, mostly because of difficulties with Elm 0.19 output:

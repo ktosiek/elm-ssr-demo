@@ -1,4 +1,4 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Browser
 import Html exposing (Html)
@@ -6,6 +6,7 @@ import Html.Attributes exposing (id, src)
 import Html.Events exposing (onClick)
 import Http
 import Json.Decode as Decode
+import Json.Encode as Json
 
 
 catApiUrl =
@@ -13,8 +14,9 @@ catApiUrl =
 
 
 type Msg
-    = GotCat (Result Http.Error Model)
+    = GotCat (Result Http.Error Cat)
     | MoreCat
+    | CatReady
 
 
 type alias CatId =
@@ -25,32 +27,52 @@ type alias Url =
     String
 
 
-type Model
+type alias Model =
+    { isLive : Bool
+    , cat : Cat
+    }
+
+
+type Cat
     = Loading
     | Cat (String -> String) CatId Url
     | NoCat
 
 
+port hydrated : (() -> msg) -> Sub msg
+
+
 main : Platform.Program {} Model Msg
 main =
     Browser.element
-        { init = \_ -> ( Loading, getCat )
+        { init = \_ -> ( { isLive = False, cat = Loading }, getCat )
         , update = update
         , view = view
-        , subscriptions = \_ -> Sub.none
+        , subscriptions = subscriptions
         }
+
+
+subscriptions model =
+    if not model.isLive then
+        hydrated (\_ -> CatReady)
+
+    else
+        Sub.none
 
 
 update msg model =
     case msg of
         GotCat (Ok cat) ->
-            ( cat, Cmd.none )
+            ( { model | cat = cat }, Cmd.none )
 
         GotCat (Err err) ->
-            ( NoCat, Cmd.none )
+            ( { model | cat = NoCat }, Cmd.none )
 
         MoreCat ->
             ( model, getCat )
+
+        CatReady ->
+            ( { model | isLive = True }, Cmd.none )
 
 
 getCat : Cmd Msg
@@ -59,7 +81,7 @@ getCat =
         |> Http.send GotCat
 
 
-firstCatDecoder : Decode.Decoder Model
+firstCatDecoder : Decode.Decoder Cat
 firstCatDecoder =
     Decode.list catDecoder
         |> Decode.andThen
@@ -69,7 +91,7 @@ firstCatDecoder =
             )
 
 
-catDecoder : Decode.Decoder Model
+catDecoder : Decode.Decoder Cat
 catDecoder =
     Decode.map2 (Cat showCatId)
         (Decode.field "id" Decode.string)
@@ -92,8 +114,8 @@ getId x =
 view : Model -> Html Msg
 view model =
     Html.div [ id "app" ]
-        [ Html.button [ onClick MoreCat ] [ Html.text "More cat!" ]
-        , case model of
+        [ Html.button [ onClick MoreCat, ariaDisabled (not model.isLive) ] [ Html.text "More cat!" ]
+        , case model.cat of
             Loading ->
                 Html.text "Loading..."
 
@@ -102,6 +124,7 @@ view model =
 
             Cat f catId url ->
                 showCat f catId url
+        , styles
         ]
 
 
@@ -109,4 +132,26 @@ showCat f catId url =
     Html.figure []
         [ Html.img [ src url ] []
         , Html.figcaption [] [ Html.text (f catId) ]
+        ]
+
+
+ariaDisabled : Bool -> Html.Attribute msg
+ariaDisabled bool =
+    Html.Attributes.attribute "aria-disabled"
+        (if bool then
+            "true"
+
+         else
+            "false"
+        )
+
+
+styles =
+    Html.node "style" [] [ Html.text rawStyle ]
+
+
+rawStyle =
+    String.join "\n"
+        [ "[aria-disabled=\"true\"] { opacity: 0.5; }"
+        , "button { transition: opacity 0.5s; }"
         ]

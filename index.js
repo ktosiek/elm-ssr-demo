@@ -11,7 +11,12 @@ onLoad(() => {
 const init = () => {
   const App = require('./src/Main.elm');
   node = document.getElementById('app');
-  window.app = App.Elm.Main.init({node});
+  window.elmApp = App.Elm.Main.init({node});
+  if (document.visibilityState == 'visible')
+    window.requestAnimationFrame(() => {
+      console.log('Sending hydrate');
+      window.elmApp.ports.hydrated.send(null);
+    })
 };
 
 if (document.visibilityState == 'visible')
