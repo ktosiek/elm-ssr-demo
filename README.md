@@ -11,7 +11,6 @@ The way of breaking into the runtime is heavily inspired by [elm-hot](https://gi
 * [ ] Keep inputs state after rehydration
 * [x] Rehydrate the state from the server
 * [x] Handle functions in model (kind of)
-* [ ] Handle the navigation key
 * [x] Download data on the server / wait for a stable state
 * [ ] Integrate with parcel-plugin-elm-hot (I've broken the integration somehow)
 * [ ] Test with --optimize and --debug
