@@ -2,7 +2,7 @@ module Main exposing (main)
 
 import Browser
 import Html exposing (Html)
-import Html.Attributes exposing (src)
+import Html.Attributes exposing (id, src)
 import Html.Events exposing (onClick)
 import Http
 import Json.Decode as Decode
@@ -28,14 +28,15 @@ type alias Url =
 type Model
     = Loading
     | Cat (String -> String) CatId Url
+    | NoCat
 
 
 main : Platform.Program {} Model Msg
 main =
-    Browser.document
+    Browser.element
         { init = \_ -> ( Loading, getCat )
         , update = update
-        , view = \m -> { title = "It's a cat!", body = [ showCat m ] }
+        , view = view
         , subscriptions = \_ -> Sub.none
         }
 
@@ -46,7 +47,7 @@ update msg model =
             ( cat, Cmd.none )
 
         GotCat (Err err) ->
-            Debug.todo "Bad cat"
+            ( NoCat, Cmd.none )
 
         MoreCat ->
             ( model, getCat )
@@ -56,7 +57,6 @@ getCat : Cmd Msg
 getCat =
     Http.get catApiUrl firstCatDecoder
         |> Http.send GotCat
-        |> Debug.log "Getting cats =^_^="
 
 
 firstCatDecoder : Decode.Decoder Model
@@ -89,14 +89,24 @@ getId x =
         "I" ++ getId (x - 1)
 
 
-showCat : Model -> Html Msg
-showCat model =
-    case model of
-        Loading ->
-            Html.text (showCatId "Loading...")
+view : Model -> Html Msg
+view model =
+    Html.div [ id "app" ]
+        [ Html.button [ onClick MoreCat ] [ Html.text "More cat!" ]
+        , case model of
+            Loading ->
+                Html.text "Loading..."
 
-        Cat f catId url ->
-            Html.figure [ onClick MoreCat ]
-                [ Html.img [ src url ] []
-                , Html.figcaption [] [ Html.text (f catId) ]
-                ]
+            NoCat ->
+                Html.text "Can't find any cats"
+
+            Cat f catId url ->
+                showCat f catId url
+        ]
+
+
+showCat f catId url =
+    Html.figure []
+        [ Html.img [ src url ] []
+        , Html.figcaption [] [ Html.text (f catId) ]
+        ]
