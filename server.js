@@ -37,7 +37,13 @@ bundler.on('buildEnd', () => {
         if (window.stepperBuilderWrapper)
           stepperBuilder = window.stepperBuilderWrapper(stepperBuilder);
         if (window.buildSSRModel) {
-          init = () => ({ "$": '#2', a: window.buildSSRModel(fns), b: ${JSON.stringify(CmdNone)}});
+          try {
+            const model = window.buildSSRModel("${bundler.mainBundle.getHash()}", fns);
+            init = () => ({ "$": '#2', a: model, b: ${JSON.stringify(CmdNone)}});
+            window._hydration_error = null;
+          } catch (e) {
+            window._hydration_error = e;
+          }
         }
       `)
     .replace(
@@ -59,7 +65,7 @@ app.use(async (req, res, next) => {
   const bundleScript = await readFile(bundle.name);
   const fullUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
 
-  return renderElmApp({path: bundle.path, code: bundleScript}, fullUrl)
+  return renderElmApp({path: bundle.path, hash: bundle.getHash(), code: bundleScript}, fullUrl)
     .then(renderedHtml => {
       res.send(
         renderApp({
@@ -106,7 +112,10 @@ const renderElmApp = (bundle, url) =>
             console.log('Pushing model state', lastModel);
             resolve(
               `${dom.window.document.body.innerHTML}
-              <script>window.buildSSRModel = (fns) => {
+              <script>window.buildSSRModel = (bundleHash, fns) => {
+                if (bundleHash !== "${bundle.hash}") {
+                  throw new Error("Bundle hash doesn't match that of the model, cannot use it for rehydration.");
+                }
                 const model = (${dehydrateModel(lastModel)})(fns);
                 console.log('dehydrated', model);
                 return model;

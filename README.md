@@ -15,7 +15,7 @@ The way of breaking into the runtime is heavily inspired by [elm-hot](https://gi
 * [x] Download data on the server / wait for a stable state
 * [ ] Integrate with parcel-plugin-elm-hot (I've broken the integration somehow)
 * [ ] Test with --optimize and --debug
-* [ ] Check that the model matches the bundle before rehydration
+* [x] Check that the model matches the bundle before rehydration
 * [ ] The Flick - the screen flicks when hydrating
 
 # <a name="limitations"></a>Limitations:

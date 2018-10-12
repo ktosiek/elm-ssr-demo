@@ -15,7 +15,8 @@ const init = () => {
   if (document.visibilityState == 'visible')
     window.requestAnimationFrame(() => {
       console.log('Sending hydrate');
-      window.elmApp.ports.hydrated.send(null);
+      const e = window._hydration_error;
+      window.elmApp.ports.hydrated.send(e ? e.toString() : null);
     })
 };
 

@@ -16,7 +16,7 @@ catApiUrl =
 type Msg
     = GotCat (Result Http.Error Cat)
     | MoreCat
-    | CatReady
+    | CatReady (Maybe String)
 
 
 type alias CatId =
@@ -39,7 +39,7 @@ type Cat
     | NoCat
 
 
-port hydrated : (() -> msg) -> Sub msg
+port hydrated : (Maybe String -> msg) -> Sub msg
 
 
 main : Platform.Program {} Model Msg
@@ -54,7 +54,7 @@ main =
 
 subscriptions model =
     if not model.isLive then
-        hydrated (\_ -> CatReady)
+        hydrated CatReady
 
     else
         Sub.none
@@ -71,7 +71,7 @@ update msg model =
         MoreCat ->
             ( model, getCat )
 
-        CatReady ->
+        CatReady err ->
             ( { model | isLive = True }, Cmd.none )
 
 
