@@ -46,8 +46,8 @@ bundler.on('buildEnd', () => {
     .replace(
       // TODO: This should handle all unicode letters, not just [0-9],
       // but node doesn't have a class for all letters.
-      /\nvar ([\w\d]+\$[\w\d$]+) = /gu,
-      "\nvar $1 =fns.$1 = ");
+      /\nvar ([\w\d]+\$[\w\d$]+) = function /gu,
+      "\nvar $1 =fns.$1 = function $1 ");
   fs.writeFileSync(path, mangled);
 });
 
@@ -146,11 +146,6 @@ const dehydrateModel = (model) => {
       return `[${o.map(serialize).join(', ')}]`;
     } else if (typeof o === 'function' && o.name.indexOf("$") > 0) {
       return `fns.${o.name}`;
-    } else if (typeof o === 'function') {
-      // Inline functions. Just hope for the best.
-      // TODO: check if those functions are really serializable?
-      console.log('inlining function', o.name, o.toString());
-      return o.toString().replace(/[\w\d]+\$[\w\d$]+/, "(fns.$&)");
     } else if (typeof o === 'object' && o["$"] !== undefined) {
       return `{${
         Object.getOwnPropertyNames(o)
