@@ -6,8 +6,24 @@ const { JSDOM } = require("jsdom");
 const { Script } = require("vm");
 const EventEmitter = require('events');
 
+
 const PORT = process.env.PORT || 8080;
-const SSR_ONLY = false;  // Only load the SSR view, without the actual app
+const SSR_ONLY = process.env.SSR_ONLY == '1';  // Only load the SSR view, without the actual app
+const DEBUGGER = process.env.ELM_DEBUG == '1';  // Compile with the debugger
+const SSR = !DEBUGGER && process.env.SSR != '0';  // Pre-render the app on the server
+console.log("Starting with options", {SSR, DEBUGGER, SSR_ONLY, PORT});
+
+// Hack to force-add the debugger {
+const elmCompiler = require('node-elm-compiler');
+const wrapF = (obj, name, wrapper) => {
+  const original = obj[name];
+  obj[name] = wrapper(original);
+}
+wrapF(elmCompiler, 'compileToString', (compileToString) => (sources, options) => {
+  options.debug = DEBUGGER;
+  return compileToString(sources, options);
+});
+// }
 
 const CmdNone = { '$': 2, m: { '$': '[]' } };
 
@@ -80,6 +96,11 @@ app.use(async (req, res, next) => {
 
 const renderElmApp = (bundle, url) =>
   new Promise((resolve, reject) => {
+    if (!SSR) {
+      resolve('<div id="app"></div>');
+      return;
+    }
+
     const dom = new JSDOM(`<!DOCTYPE html><html><body><div id="app">`, {
       url,
       runScripts: "outside-only"
