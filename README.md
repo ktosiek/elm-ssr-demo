@@ -13,7 +13,7 @@ The way of breaking into the runtime is heavily inspired by [elm-hot](https://gi
 * [x] Handle functions in model (kind of)
 * [x] Download data on the server / wait for a stable state
 * [ ] Integrate with parcel-plugin-elm-hot (I've broken the integration somehow)
-* [ ] Test with --optimize and --debug
+* [x] Test with --optimize and --debug (optimize works, debug is broken)
 * [x] Check that the model matches the bundle before rehydration
 * [ ] The Flick - the screen flicks when hydrating
 
@@ -21,3 +21,4 @@ The way of breaking into the runtime is heavily inspired by [elm-hot](https://gi
 Those are left out of the demo on purpose, mostly because of difficulties with Elm 0.19 output:
 * Only works well with `Browser.element` - `document` and `application` remove existing DOM before attaching.
 * Only top-level, named functions can be serialized - using a closure or anonymous function will cause a failure on the server.
+* debugger doesn't work with SSR - the debugger keeps some unserializable state (like the `sendToApp` function). It can still be used on a mangled bundle without SSR.
