@@ -5,7 +5,7 @@ const fs = require("fs");
 const { JSDOM } = require("jsdom");
 const { Script } = require("vm");
 const EventEmitter = require('events');
-
+const elmSSR = require('./parcel-plugin-elm-ssr/index');
 
 const PORT = process.env.PORT || 8080;
 const SSR_ONLY = process.env.SSR_ONLY == '1';  // Only load the SSR view, without the actual app
@@ -34,44 +34,14 @@ app.use('/static', express.static('dist'));
 const file = 'index.js'; // Pass an absolute path to the entrypoint here
 const options = {
   hmr: false,  // TODO: fix HMR with elm-hot
+  logLevel: 4,
 }; // See options section of api docs, for the possibilities
 
 // Initialize a new bundler using a file and options
 const bundler = new Bundler(file, options);
+elmSSR(bundler);
 const readFile = require('util').promisify(fs.readFile);
 const writeFile = require('util').promisify(fs.writeFile);
-
-// Inject the stepperBuilder wrapper into the code bundle
-bundler.on('buildEnd', () => {
-  if (!bundler.mainBundle) return;
-  const path = bundler.mainBundle.name;
-  const raw = fs.readFileSync(path, {encoding: 'utf-8'});
-  const mangled = raw
-    .replace(
-      /(function _Platform_initialize\([^)]+\))\n{/,
-      `$1 {
-        if (window.stepperBuilderWrapper)
-          stepperBuilder = window.stepperBuilderWrapper(stepperBuilder);
-        if (window.buildSSRModel) {
-          try {
-            const model = window.buildSSRModel("${bundler.mainBundle.getHash()}", fns);
-            init = () => ({ "$": '#2', a: model, b: ${JSON.stringify(CmdNone)}});
-            window._hydration_error = null;
-          } catch (e) {
-            window._hydration_error = e;
-          }
-        }
-      `)
-    .replace(
-      /\nfunction F\(arity, fun, wrapper\) {/,
-      "\nvar fns = {}; function F(arity, fun, wrapper) {")
-    .replace(
-      // TODO: This should handle all unicode letters, not just [0-9],
-      // but node doesn't have a class for all letters.
-      /\nvar ([\w\d]+\$[\w\d$]+) = function /gu,
-      "\nvar $1 =fns.$1 = function $1 ");
-  fs.writeFileSync(path, mangled);
-});
 
 // Let express use the bundler middleware, this will let Parcel handle every request over your express server
 app.use(bundler.middleware());
@@ -81,11 +51,11 @@ app.use(async (req, res, next) => {
   const bundleScript = await readFile(bundle.name);
   const fullUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
 
-  return renderElmApp({path: bundle.path, hash: bundle.getHash(), code: bundleScript}, fullUrl)
+  return renderElmApp({path: bundle.path, code: bundleScript}, fullUrl)
     .then(renderedHtml => {
       res.send(
         renderApp({
-          bundlePath: SSR_ONLY ? null : `/static/${bundle.entryAsset.id}`,
+          bundlePath: SSR_ONLY ? null : `/static/index.js`,
           renderedHtml,
          })
        );
@@ -110,16 +80,16 @@ const renderElmApp = (bundle, url) =>
     const xhrWatcher = new XHRWatcher();
     xhrWatcher.install(dom.window);
 
-    let lastModel = null;
-    dom.window._on_model_step = (model) => {
+    let lastModel = {};
+    dom.window._on_model_step = (buildId, model) => {
       console.log('Model step', model);
-      lastModel = model;
+      lastModel[buildId] = model;
     }
-    dom.window.stepperBuilderWrapper = (stepperBuilder) => {
+    dom.window.stepperBuilderWrapper = (buildId, stepperBuilder) => {
       return (sendToApp, initialModel) => {
         const baseStepper = stepperBuilder(sendToApp, initialModel);
         return (nextModel, isSync) => {
-          dom.window._on_model_step(nextModel);
+          dom.window._on_model_step(buildId, nextModel);
           return baseStepper(nextModel, isSync);
         }
       }
@@ -133,14 +103,18 @@ const renderElmApp = (bundle, url) =>
             console.log('Pushing model state', lastModel);
             resolve(
               `${dom.window.document.body.innerHTML}
-              <script>window.buildSSRModel = (bundleHash, fns) => {
-                if (bundleHash !== "${bundle.hash}") {
-                  throw new Error("Bundle hash doesn't match that of the model, cannot use it for rehydration.");
-                }
-                const model = (${dehydrateModel(lastModel)})(fns);
-                console.log('dehydrated', model);
-                return model;
-              }</script>`);
+              <script>(() => {
+                const models = (${elmSSR.dehydrateMultipleModels(lastModel)});
+                window.buildSSRModel = (buildId, fns) => {
+                  const modelFn = models[buildId];
+                  if (!modelFn) {
+                    throw new Error("Build id doesn't match that of a model, cannot use it for rehydration.");
+                  }
+                  const model = modelFn(fns);
+                  console.log('dehydrated', model);
+                  return model;
+                };
+              })();</script>`);
             dom.window.close();
           } else {
             tryResolve();
@@ -166,29 +140,6 @@ const renderApp = ({bundlePath, renderedHtml}) => {
 ${renderedHtml}
 ${bundlePath ? `<script src="${bundlePath}"></script>` : ""}
 </body></html>`;
-}
-
-const dehydrateModel = (model) => {
-  return `(fns) => (${serialize(model)})`;
-
-  function serialize(o) {
-    if (o instanceof Array) {
-      return `[${o.map(serialize).join(', ')}]`;
-    } else if (typeof o === 'function' && o.name.indexOf("$") > 0) {
-      return `fns.${o.name}`;
-    } else if (typeof o === 'object') {
-      return `{${
-        Object.getOwnPropertyNames(o)
-        .map(k => `"${k}": ${serialize(o[k])}`)
-        .join(', ')
-      }}`;
-    } else if (typeof o === 'number' || typeof o === 'string' || typeof o === 'boolean') {
-      return JSON.stringify(o);
-    } else {
-      console.log('Failed to serialize', typeof o, o);
-      throw new Error(`Unserializable value in the model: ${o}`);
-    }
-  }
 }
 
 class QueueRAFHandler {
