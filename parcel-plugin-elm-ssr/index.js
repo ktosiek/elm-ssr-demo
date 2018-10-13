@@ -9,13 +9,17 @@ module.exports = (bundler) => {
   };
 }
 
-module.exports.dehydrateMultipleModels = (models) => `{${
+module.exports.dehydrateMultipleModels = (models, functions) => `{${
   Object.getOwnPropertyNames(models)
-    .map(k => `"${k}": ${dehydrateModel(models[k])}`)
+    .map(k => `"${k}": ${dehydrateModel(models[k], functions[k])}`)
     .join(', ')
 }}`;
 
-const dehydrateModel = module.exports.dehydrateModel = (model) => {
+const dehydrateModel = module.exports.dehydrateModel = (model, fns) => {
+  // Function -> name mapping
+  const revFns = {};
+  Object.getOwnPropertyNames(fns).map((name) => {revFns[fns[name]] = name;});
+
   return `(fns) => (${serialize(model)})`;
 
   function serialize(o) {
@@ -23,8 +27,8 @@ const dehydrateModel = module.exports.dehydrateModel = (model) => {
       return `[${o.map(serialize).join(', ')}]`;
     } if (o === undefined || o === null) {
       return "" + o;
-    } else if (typeof o === 'function' && o.name.indexOf("$") > 0) {
-      return `fns.${o.name}`;
+    } else if (typeof o === 'function' && revFns[o]) {
+      return `fns.${revFns[o]}`;
     } else if (typeof o === 'object') {
       return `{${
         Object.getOwnPropertyNames(o)

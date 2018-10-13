@@ -24,7 +24,7 @@ const inject = (raw) => {
       /(function _Platform_initialize\([^)]+\))\n{/,
       `$1 {
         if (window.stepperBuilderWrapper)
-          stepperBuilder = window.stepperBuilderWrapper("${buildId}", stepperBuilder);
+          stepperBuilder = window.stepperBuilderWrapper("${buildId}", fns, stepperBuilder);
         if (window.buildSSRModel) {
           try {
             const model = window.buildSSRModel("${buildId}", fns);

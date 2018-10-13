@@ -82,11 +82,13 @@ const renderElmApp = (bundle, url) =>
     xhrWatcher.install(dom.window);
 
     let lastModel = {};
+    let buildFns = {};
     dom.window._on_model_step = (buildId, model) => {
       console.log('Model step', model);
       lastModel[buildId] = model;
     }
-    dom.window.stepperBuilderWrapper = (buildId, stepperBuilder) => {
+    dom.window.stepperBuilderWrapper = (buildId, fns, stepperBuilder) => {
+      buildFns[buildId] = fns;
       return (sendToApp, initialModel) => {
         const baseStepper = stepperBuilder(sendToApp, initialModel);
         return (nextModel, isSync) => {
@@ -105,7 +107,7 @@ const renderElmApp = (bundle, url) =>
             resolve(
               `${dom.window.document.body.innerHTML}
               <script>(() => {
-                const models = (${elmSSR.dehydrateMultipleModels(lastModel)});
+                const models = (${elmSSR.dehydrateMultipleModels(lastModel, buildFns)});
                 window.buildSSRModel = (buildId, fns) => {
                   const modelFn = models[buildId];
                   if (!modelFn) {
