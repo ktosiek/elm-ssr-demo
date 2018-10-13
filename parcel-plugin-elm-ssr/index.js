@@ -1,7 +1,12 @@
 const fs = require("fs");
 
 module.exports = (bundler) => {
-  bundler.addAssetType('elm', require.resolve('./ElmSSRAsset.js'));
+  // Make sure this plugin wins for the .elm extension
+  const baseLoadPlugins = bundler.loadPlugins;
+  bundler.loadPlugins = async function loadPlugins() {
+    await baseLoadPlugins.apply(this);
+    bundler.addAssetType('elm', require.resolve('./ElmSSRAsset.js'));
+  };
 }
 
 module.exports.dehydrateMultipleModels = (models) => `{${

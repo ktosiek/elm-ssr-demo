@@ -1,4 +1,9 @@
-const ElmAsset = require('parcel-bundler/src/assets/ElmAsset');
+let ElmAsset;
+try {
+  ElmAsset = require('parcel-plugin-elm-hot/ElmHotAsset');
+} catch (e) {
+  ElmAsset = require('parcel-bundler/src/assets/ElmAsset');
+}
 
 const CmdNone = { '$': 2, m: { '$': '[]' } };
 

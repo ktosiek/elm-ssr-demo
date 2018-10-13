@@ -11,7 +11,8 @@ const PORT = process.env.PORT || 8080;
 const SSR_ONLY = process.env.SSR_ONLY == '1';  // Only load the SSR view, without the actual app
 const DEBUGGER = process.env.ELM_DEBUG == '1';  // Compile with the debugger
 const SSR = !DEBUGGER && process.env.SSR != '0';  // Pre-render the app on the server
-console.log("Starting with options", {SSR, DEBUGGER, SSR_ONLY, PORT});
+const HMR = !SSR;  // HMR breaks the focus on rehydration
+console.log("Starting with options", {SSR, HMR, DEBUGGER, SSR_ONLY, PORT});
 
 // Hack to force-add the debugger {
 const elmCompiler = require('node-elm-compiler');
@@ -33,7 +34,7 @@ app.use('/static', express.static('dist'));
 
 const file = 'index.js'; // Pass an absolute path to the entrypoint here
 const options = {
-  hmr: false,  // TODO: fix HMR with elm-hot
+  hmr: HMR,
   logLevel: 4,
 }; // See options section of api docs, for the possibilities
 
