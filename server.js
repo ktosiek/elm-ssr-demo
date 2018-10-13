@@ -1,10 +1,10 @@
 const path = require("path");
-//const args = require('yargs').argv;
 const express = require("express");
 const fs = require("fs");
 const { JSDOM } = require("jsdom");
 const { Script } = require("vm");
-const EventEmitter = require('events');
+const XHRWatcher = require('./XHRWatcher');
+const RAFQueueHandler = require('./RAFQueueHandler');
 const elmSSR = require('./parcel-plugin-elm-ssr/index');
 
 const PORT = process.env.PORT || 8080;
@@ -76,7 +76,7 @@ const renderElmApp = (bundle, url) =>
       url,
       runScripts: "outside-only"
     });
-    const rafHandler = new QueueRAFHandler();
+    const rafHandler = new RAFQueueHandler();
     rafHandler.install(dom.window);
     const xhrWatcher = new XHRWatcher();
     xhrWatcher.install(dom.window);
@@ -143,68 +143,6 @@ const renderApp = ({bundlePath, renderedHtml}) => {
 ${renderedHtml}
 ${bundlePath ? `<script src="${bundlePath}"></script>` : ""}
 </body></html>`;
-}
-
-class QueueRAFHandler {
-  constructor() {
-    this.queue = [];
-  }
-
-  runQueue() {
-    console.log('Handling RAF callbacks', this.queue);
-    while (this.queue.length > 0)
-      this.queue.shift()();
-  }
-
-  push(callback) {
-    this.queue.push(callback);
-  }
-
-  install(target) {
-    target.requestAnimationFrame = (callback) => {
-      console.log("New RAF callback", [callback]);
-      this.push(callback);
-    }
-  }
-}
-
-class XHRWatcher extends EventEmitter {
-  constructor() {
-    super();
-    this.queue = new Set();
-  }
-
-  install(window) {
-    const watcher = this;
-
-    class WrappedXMLHttpRequest extends window.XMLHttpRequest {
-      constructor() {
-        super();
-        watcher.watch(this);
-      }
-    }
-
-    window.XMLHttpRequest = WrappedXMLHttpRequest;
-  }
-
-  watch(xhr) {
-    xhr.addEventListener("loadstart", () => this.handleLoadStart(xhr));
-    xhr.addEventListener("loadend", () => this.handleLoadEnd(xhr));
-  }
-
-  handleLoadStart(xhr) {
-    this.queue.add(xhr);
-  }
-
-  handleLoadEnd(xhr) {
-    this.queue.delete(xhr);
-    if (this.allDone)
-      this.emit('queueEmpty');
-  }
-
-  get allDone() {
-    return this.queue.size === 0;
-  }
 }
 
 app.listen(PORT);
