@@ -4,6 +4,7 @@ import Browser
 import Html exposing (Html)
 import Html.Attributes exposing (id, src)
 import Html.Events exposing (onClick)
+import Html.Keyed as HK
 import Http
 import Json.Decode as Decode
 import Json.Encode as Json
@@ -129,9 +130,10 @@ view model =
 
 
 showCat f catId url =
-    Html.figure []
-        [ Html.img [ Html.Attributes.attribute "src" url ] []
-        , Html.figcaption [] [ Html.text (f catId) ]
+    HK.node "figure"
+        []
+        [ ( url, Html.img [ Html.Attributes.attribute "src" url ] [] )
+        , ( catId, Html.figcaption [] [ Html.text (f catId) ] )
         ]
 
 
