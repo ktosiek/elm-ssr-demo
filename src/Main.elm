@@ -113,7 +113,7 @@ getId x =
 
 view : Model -> Html Msg
 view model =
-    Html.div [ id "app" ]
+    Html.div [ Html.Attributes.attribute "id" "app" ]
         [ Html.button [ onClick MoreCat, ariaDisabled (not model.isLive) ] [ Html.text "More cat!" ]
         , case model.cat of
             Loading ->
@@ -130,7 +130,7 @@ view model =
 
 showCat f catId url =
     Html.figure []
-        [ Html.img [ src url ] []
+        [ Html.img [ Html.Attributes.attribute "src" url ] []
         , Html.figcaption [] [ Html.text (f catId) ]
         ]
 

@@ -15,7 +15,7 @@ The way of breaking into the runtime is heavily inspired by [elm-hot](https://gi
 * [x] Integrate with parcel-plugin-elm-hot
 * [x] Test with --optimize and --debug (optimize works, debug is broken)
 * [x] Check that the model matches the bundle before rehydration
-* [ ] The Flick - the screen flicks when hydrating
+* [ ] The Flick - the screen flicks when hydrating (worked around, solution will need a fix for https://github.com/elm/virtual-dom/issues/144)
 
 # <a name="limitations"></a>Limitations:
 Those are left out of the demo on purpose, mostly because of difficulties with Elm 0.19 output:
