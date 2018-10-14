@@ -5,6 +5,13 @@ Experiment in building an SSR app in Elm.
 The server is heavily inspired by [spades](https://github.com/rogeriochaves/spades), but adds some new stuff (basically most of [the TODO](#TODO) :-)).
 The way of breaking into the runtime is heavily inspired by [elm-hot](https://github.com/klazuka/elm-hot/blob/) - I wouldn't be brave enough to try without elm-hot leading the way.
 
+# Running the server
+
+You need to have Elm 0.19 already installed, then it's just:
+
+    $ yarn install
+    $ yarn run server
+
 # <a name="TODO"></a>TODO:
 * [x] Render a simple view
 * [x] Keep focus after rehydration (but see [Limitations](#limitations))
