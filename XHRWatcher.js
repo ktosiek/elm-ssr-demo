@@ -38,4 +38,11 @@ module.exports = class XHRWatcher extends EventEmitter {
   get allDone() {
     return this.queue.size === 0;
   }
+
+  untilDone() {
+    return new Promise((resolve, reject) => {
+      if (this.allDone) resolve();
+      else this.on('queueEmpty', () => { resolve(); });
+    });
+  }
 }

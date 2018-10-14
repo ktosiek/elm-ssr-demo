@@ -5,6 +5,7 @@ const { JSDOM } = require("jsdom");
 const { Script } = require("vm");
 const XHRWatcher = require('./XHRWatcher');
 const RAFQueueHandler = require('./RAFQueueHandler');
+const ElmModelWatcher = require('./parcel-plugin-elm-ssr/ElmModelWatcher');
 const elmSSR = require('./parcel-plugin-elm-ssr/index');
 
 const PORT = process.env.PORT || 8080;
@@ -47,95 +48,64 @@ const writeFile = require('util').promisify(fs.writeFile);
 // Let express use the bundler middleware, this will let Parcel handle every request over your express server
 app.use(bundler.middleware());
 
+const INITIAL_APP_HTML = '<div id="app"></div>';
+
 app.use(async (req, res, next) => {
   const bundle = await bundler.bundle();
   const bundleScript = await readFile(bundle.name);
   const fullUrl = `${req.protocol}://${req.get("host")}${req.originalUrl}`;
 
-  return renderElmApp({path: bundle.path, code: bundleScript}, fullUrl)
-    .then(renderedHtml => {
-      res.send(
-        renderApp({
-          bundlePath: SSR_ONLY ? null : `/static/index.js`,
-          renderedHtml,
-         })
-       );
-    })
-    .catch(next);
+  const renderedHtml = SSR
+    ? await renderElmApp({path: bundle.path, code: bundleScript}, fullUrl)
+    : INITIAL_APP_HTML;
+
+  res.send(renderApp({
+    bundlePath: SSR_ONLY ? null : `/static/index.js`,
+    renderedHtml,
+  }));
 });
 
-
-const renderElmApp = (bundle, url) =>
-  new Promise((resolve, reject) => {
-    if (!SSR) {
-      resolve('<div id="app"></div>');
-      return;
-    }
-
-    const dom = new JSDOM(`<!DOCTYPE html><html><body><div id="app">`, {
-      url,
-      runScripts: "outside-only"
-    });
-    const rafHandler = new RAFQueueHandler();
-    rafHandler.install(dom.window);
-    const xhrWatcher = new XHRWatcher();
-    xhrWatcher.install(dom.window);
-
-    let lastModel = {};
-    let buildFns = {};
-    dom.window._on_model_step = (buildId, model) => {
-      console.log('Model step', model);
-      lastModel[buildId] = model;
-    }
-    dom.window.stepperBuilderWrapper = (buildId, fns, stepperBuilder) => {
-      buildFns[buildId] = fns;
-      return (sendToApp, initialModel) => {
-        const baseStepper = stepperBuilder(sendToApp, initialModel);
-        return (nextModel, isSync) => {
-          dom.window._on_model_step(buildId, nextModel);
-          return baseStepper(nextModel, isSync);
-        }
-      }
-    };
-
-    const tryResolve = () => {
-      dom.window.requestAnimationFrame(function resolveIfReady() {
-        if (xhrWatcher.allDone) {
-          if (rafHandler.queue.length === 0) {
-            console.log('No pending XHR, and nothing in RAF queue: pushing the results');
-            console.log('Pushing model state', lastModel);
-            resolve(
-              `${dom.window.document.body.innerHTML}
-              <script>(() => {
-                const models = (${elmSSR.dehydrateMultipleModels(lastModel, buildFns)});
-                window.buildSSRModel = (buildId, fns) => {
-                  const modelFn = models[buildId];
-                  if (!modelFn) {
-                    throw new Error("Build id doesn't match that of a model, cannot use it for rehydration.");
-                  }
-                  const model = modelFn(fns);
-                  console.log('dehydrated', model);
-                  return model;
-                };
-              })();</script>`);
-            dom.window.close();
-          } else {
-            tryResolve();
-          }
-        } else {
-          console.log("RAF with an XHR in progress, let's try later");
-          xhrWatcher.once('queueEmpty', tryResolve);
-        }
-      });
-      rafHandler.runQueue();
-    };
-    try {
-      dom.runVMScript(new Script(bundle.code, {filename: bundle.path}));
-      tryResolve();
-    } catch (err) {
-      reject(err);
-    }
+const renderElmApp = async (bundle, url) => {
+  const initialHtml = renderApp({
+    bundlePath: null,  // we'll add the bundle later
+    renderedHtml: INITIAL_APP_HTML,
   });
+  const dom = new JSDOM(initialHtml, {
+    url,
+    runScripts: "outside-only",
+  });
+  const rafHandler = new RAFQueueHandler();
+  rafHandler.install(dom.window);
+  const xhrWatcher = new XHRWatcher();
+  xhrWatcher.install(dom.window);
+  const elmModelWatcher = new ElmModelWatcher();
+  elmModelWatcher.install(dom.window);
+
+  try {
+    dom.runVMScript(new Script(bundle.code, {filename: bundle.path}));
+    await untilStable({xhrWatcher, rafHandler});
+    console.log('Pushing model state', elmModelWatcher.models);
+
+    return `${dom.window.document.body.innerHTML}
+    <script>${elmModelWatcher.getRehydrationScript()}</script>`;
+  }
+  catch (e) {
+    console.error("Server rendering failure:", e);
+    return INITIAL_APP_HTML;
+  }
+  finally {
+    dom.window.close();
+  }
+}
+
+const untilStable = async ({xhrWatcher, rafHandler}) => {
+  while (!xhrWatcher.allDone || rafHandler.queue.length !== 0) {
+    console.log(`Waiting for ${xhrWatcher.queue.size} XHRs and ${rafHandler.queue.length} RAFs.`)
+    await xhrWatcher.untilDone();
+    rafHandler.runQueue();
+  }
+  console.log('No pending XHR, and nothing in RAF queue: the view is stable');
+};
 
 const renderApp = ({bundlePath, renderedHtml}) => {
   return `<!DOCTYPE html>
