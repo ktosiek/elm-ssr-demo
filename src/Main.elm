@@ -2,7 +2,7 @@ port module Main exposing (main)
 
 import Browser
 import Html exposing (Html)
-import Html.Attributes exposing (id, src)
+import Html.Attributes exposing (class, id, src)
 import Html.Events exposing (onClick)
 import Html.Keyed as HK
 import Http
@@ -115,7 +115,7 @@ getId x =
 view : Model -> Html Msg
 view model =
     Html.div [ Html.Attributes.attribute "id" "app" ]
-        [ Html.button [ onClick MoreCat, ariaDisabled (not model.isLive) ] [ Html.text "More cat!" ]
+        [ Html.button [ onClick MoreCat, class "more-cats", ariaDisabled (not model.isLive) ] [ Html.text "More cat!" ]
         , case model.cat of
             Loading ->
                 Html.text "Loading..."
@@ -156,4 +156,7 @@ rawStyle =
     String.join "\n"
         [ "[aria-disabled=\"true\"] { opacity: 0.5; }"
         , "button { transition: opacity 0.5s; }"
+        , ".more-cats::after { content: \"🐱\"; display: inline-block; }"
+        , ".more-cats[aria-disabled=\"true\"]::after { animation: spin 3s linear infinite; }"
+        , "@keyframes spin { 100% { transform:rotate(360deg); } }"
         ]
