@@ -42,7 +42,7 @@ const inject = (raw) => {
   mangled = checkReplace(mangled,
       // TODO: This should handle all unicode letters, not just [0-9],
       // but node doesn't have a class for all letters.
-      /\nvar ([\w\d]+\$[\w\d$]+) = function /gu,
+      /\nvar (\$?[\w\d]+\$[\w\d$]+) = function /gu,
       "\nvar $1 =fns.$1 = function $1 ");
   console.log('mangled from', raw.length, 'to', mangled.length)
   return mangled;
